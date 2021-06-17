@@ -91,6 +91,18 @@ app.get('/customers', async (req, res) => {
 
 })
 
+app.get('/customers/:id', async (req, res) => {
+  const { id } = req.params;
+  let responseCustomer = '';
+
+  responseCustomer = await connection.query('SELECT * FROM customers WHERE id = $1', [id]);
+
+  if(responseCustomer.rows.length === 0) {
+    return res.sendStatus(404);
+  }
+  res.send(responseCustomer.rows);
+})
+
 app.post('/customers', async (req, res) => {
   const {name, phone, cpf, birthday} = req.body;
 
