@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import pg from 'pg';
+// import joi from 'joi';
 
 const app = express();
 const { Pool } = pg;
@@ -27,7 +28,24 @@ app.get('/categories', async (req, res) => {
     res.send(response.rows);
 })
 
+app.post('/categories', async (req, res) => {
+  const { name } = req.body;
 
+  if(name.length === 0) {
+    return res.sendStatus(400);
+  }
+
+  const checkName = await connection.query('select * from categories where name ilike $1',[name])
+  if(checkName.rows[0]) return res.sendStatus(409) 
+
+  await connection.query('insert into categories ("name") values ($1)',[name]);
+  return res.sendStatus(201);
+})
+
+app.delete('/categories', async (req, res) => {
+  await connection.query('delete from categories where id = 5');
+  res.sendStatus(200);
+})
 console.log('rodando')
 
 app.listen(4000);
