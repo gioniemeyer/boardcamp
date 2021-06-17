@@ -49,7 +49,7 @@ app.get('/games', async (req, res) => {
   let responseGame = '';
 
   if(title) {
-    responseGame = await connection.query('select * from games where name ilike $1',[title]);
+    responseGame = await connection.query('select * from games where name ilike $1',[title + '%']);
   } else {
     responseGame = await connection.query('select * from games');
   }
