@@ -42,10 +42,40 @@ app.post('/categories', async (req, res) => {
   return res.sendStatus(201);
 })
 
-app.delete('/categories', async (req, res) => {
-  await connection.query('delete from categories where id = 5');
-  res.sendStatus(200);
+// ---
+
+app.get('/games', async (req, res) => {
+  const { title } = req.query;
+  let responseGame = '';
+
+  if(title) {
+    responseGame = await connection.query('select * from games where name ilike $1',[title]);
+  } else {
+    responseGame = await connection.query('select * from games');
+  }
+  
+  res.send(responseGame.rows);
+
 })
+
+app.post('/games', async (req, res) => {
+  const {name, image, stockTotal, categoryId, pricePerDay} = req.body;
+
+  await connection.query('insert into games ("name", "image", "stockTotal", "categoryId", "pricePerDay") values ($1, $2, $3, $4, $5)',[name, image, stockTotal, categoryId, pricePerDay]);
+  return res.sendStatus(201);
+
+})
+
 console.log('rodando')
 
 app.listen(4000);
+
+
+
+
+
+
+// app.delete('/categories', async (req, res) => {
+//   await connection.query('delete from categories where id = 5');
+//   res.sendStatus(200);
+// })
