@@ -31,7 +31,7 @@ app.get('/categories', async (req, res) => {
 app.post('/categories', async (req, res) => {
   const { name } = req.body;
 
-  if(name.length === 0) {
+  if(!name || name.length === 0) {
     return res.sendStatus(400);
   }
 
@@ -61,10 +61,20 @@ app.get('/games', async (req, res) => {
 app.post('/games', async (req, res) => {
   const {name, image, stockTotal, categoryId, pricePerDay} = req.body;
 
+  const checkCategoryId = await connection.query('select * from categories where id = $1',[categoryId]);
+
+  if(!name || name.length === 0 || !stockTotal || stockTotal === 0 || !pricePerDay || pricePerDay === 0 || checkCategoryId.rows.length === 0) {
+    return res.sendStatus(400);
+  }
+
+  const checkName = await connection.query('select * from games where name ilike $1',[name])
+  if(checkName.rows[0]) return res.sendStatus(409);
+
   await connection.query('insert into games ("name", "image", "stockTotal", "categoryId", "pricePerDay") values ($1, $2, $3, $4, $5)',[name, image, stockTotal, categoryId, pricePerDay]);
   return res.sendStatus(201);
 
 })
+
 
 console.log('rodando')
 
@@ -77,5 +87,10 @@ app.listen(4000);
 
 // app.delete('/categories', async (req, res) => {
 //   await connection.query('delete from categories where id = 5');
+//   res.sendStatus(200);
+// })
+
+// app.delete('/games', async (req, res) => {
+//   await connection.query('delete from games where id = 3');
 //   res.sendStatus(200);
 // })
