@@ -187,8 +187,6 @@ app.post('/rentals', async (req, res) => {
   const stockRented = array.rows.length;
   
   if(!customerId || !gameId || !daysRented || !gameRented || !c.rows[0] || daysRented < 1 || stockRented >= gameRented.stockTotal) return res.sendStatus(400);
-  const p = daysRented*gameRented.pricePerDay;
-  // console.log(p);
 
   await connection.query(`
     INSERT INTO rentals ("customerId","gameId","daysRented", "rentDate", "originalPrice")
