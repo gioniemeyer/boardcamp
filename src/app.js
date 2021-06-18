@@ -93,13 +93,12 @@ app.get('/customers', async (req, res) => {
   let responseCustomers = '';
 
   if(cpf) {
-    responseCustomers = await connection.query(`SELECT * FROM customers WHERE cpf iLIKE $1`, [cpf + '%']);
+    responseCustomers = await connection.query(`SELECT * FROM customers WHERE cpf iLIKE $1`, [cpf.replace(/\D+/g,'') + '%']);
   } else {
     responseCustomers = await connection.query('SELECT * FROM customers');
   }
   
   res.send(responseCustomers.rows);
-
 })
 
 app.get('/customers/:id', async (req, res) => {
@@ -114,12 +113,11 @@ app.get('/customers/:id', async (req, res) => {
   res.send(responseCustomer.rows);
 })
 
+const regexCpf = /^[0-9]{3}\.[0-9]{3}\.[0-9]{3}\-[0-9]{2}$/;
+const regexPhone = /^[0-9]{10,11}$/;
 
 app.post('/customers', async (req, res) => {
   const {name, phone, cpf, birthday} = req.body;
-
-  const regexCpf = /^[0-9]{3}\.[0-9]{3}\.[0-9]{3}\-[0-9]{2}$/;
-  const regexPhone = /^[0-9]{10,11}$/
 
   const cpfFormat = regexCpf.test(cpf);
   const phoneFormat = regexPhone.test(phone);
@@ -128,13 +126,43 @@ app.post('/customers', async (req, res) => {
     return res.sendStatus(400);
   }
 
-  const checkCpf = await connection.query('SELECT * FROM customers WHERE cpf iLIKE $1',[cpf])
+  const checkCpf = await connection.query('SELECT * FROM customers WHERE cpf iLIKE $1',[cpf.replace(/\D+/g,'')])
   if(checkCpf.rows[0]) return res.sendStatus(409);
 
-  await connection.query('insert into customers (name, phone, cpf, birthday) values ($1, $2, $3, $4)',[name, phone, cpf.replace(/\D+/g, ''), birthday]);
-  return res.sendStatus(201);
+  await connection.query(`
+    INSERT INTO customers (name, phone, cpf, birthday) 
+    VALUES ($1, $2, $3, $4)`,
+    [name, phone, cpf.replace(/\D+/g, ''), birthday]);
+  
+    return res.sendStatus(201);
+});
 
+app.put('/customers/:id', async (req, res) => {
+
+  const { id } = req.params;
+  const {name, phone, cpf, birthday} = req.body;
+
+  const cpfFormatCustomer = regexCpf.test(cpf);
+  const phoneFormatCustomer = regexPhone.test(phone);
+  
+  if(!name || name.length === 0 || !cpfFormatCustomer || !phoneFormatCustomer || !birthday || !Date.parse(birthday) || Date.parse(birthday) > Date.now()) {
+    return res.sendStatus(400);
+  }
+
+  const checkCpfCustomer = await connection.query('SELECT * FROM customers WHERE cpf iLIKE $1 AND id <> $2',[cpf.replace(/\D+/g,''), id]);
+  if(checkCpfCustomer.rows[0]) return res.sendStatus(409);
+
+  await connection.query(`
+    UPDATE customers 
+    SET name = $1, phone = $2, cpf = $3, birthday = $4 
+    WHERE id = $5`,
+    [name, phone, cpf.replace(/\D+/g, ''), birthday, id]);
+  
+    return res.sendStatus(200);
 })
+
+//----
+
 
 
 console.log('rodando')
@@ -146,8 +174,8 @@ app.listen(4000);
 
 
 
-// app.delete('/categories', async (req, res) => {
-//   await connection.query('delete from categories where id = 5');
+// app.delete('/customers', async (req, res) => {
+//   await connection.query('delete from customers where id = 5');
 //   res.sendStatus(200);
 // })
 
