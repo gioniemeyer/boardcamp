@@ -114,15 +114,17 @@ app.get('/customers/:id', async (req, res) => {
   res.send(responseCustomer.rows);
 })
 
+
 app.post('/customers', async (req, res) => {
   const {name, phone, cpf, birthday} = req.body;
 
   const regexCpf = /^[0-9]{3}\.[0-9]{3}\.[0-9]{3}\-[0-9]{2}$/;
-  const cpfFormat = regexCpf.test(cpf) 
-  console.log(cpfFormat);
+  const regexPhone = /^[0-9]{10,11}$/
 
+  const cpfFormat = regexCpf.test(cpf);
+  const phoneFormat = regexPhone.test(phone);
   
-  if(!name || name.length === 0 || !cpfFormat || !(999999999 < phone < 99999999999) || !birthday || !Date.parse(birthday) || Date.parse(birthday) > Date.now()) {
+  if(!name || name.length === 0 || !cpfFormat || !phoneFormat || !birthday || !Date.parse(birthday) || Date.parse(birthday) > Date.now()) {
     return res.sendStatus(400);
   }
 
