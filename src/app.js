@@ -28,7 +28,14 @@ app.use(express.json());
 
 app.get('/categories', async (req, res) => {
   try {
-    const response = await connection.query('SELECT * FROM categories')
+    const { offset } = req.query;
+    let response = '';
+    if(offset) {
+      response = await connection.query(`
+      SELECT * FROM categories ORDER BY id ASC OFFSET $1 ROWS`, [offset])
+    } else {
+      response = await connection.query('SELECT * FROM categories ORDER BY id ASC')
+    }
     res.send(response.rows);
   } catch(err) {
     res.status(500).send(err);
@@ -57,7 +64,7 @@ app.post('/categories', async (req, res) => {
 
 app.get('/games', async (req, res) => {
   try {
-    const { name } = req.query;
+    const { name, offset } = req.query;
     let responseGame = '';
 
     if(name) {
@@ -67,12 +74,20 @@ app.get('/games', async (req, res) => {
         JOIN categories
         ON games."categoryId" = categories.id
         WHERE games.name iLIKE $1`,[name + '%']);
+    } else if (offset) {
+      responseGame = await connection.query(`
+        SELECT games.*, categories.name AS "categoryName" 
+        FROM games 
+        JOIN categories
+        ON games."categoryId" = categories.id
+        ORDER BY id ASC OFFSET $1 ROWS`,[offset]);
     } else {
       responseGame = await connection.query(`
-      SELECT games.*, categories.name AS "categoryName" 
-      FROM games 
-      JOIN categories
-      ON games."categoryId" = categories.id`);
+        SELECT games.*, categories.name AS "categoryName" 
+        FROM games 
+        JOIN categories
+        ON games."categoryId" = categories.id
+        ORDER BY id ASC`);
     }
     
     res.send(responseGame.rows);
@@ -111,13 +126,17 @@ const regexPhone = /^[0-9]{10,11}$/;
 
 app.get('/customers', async (req, res) => {
   try {
-    const { cpf } = req.query;
+    const { cpf, offset } = req.query;
     let responseCustomers = '';
 
     if(cpf) {
-      responseCustomers = await connection.query(`SELECT * FROM customers WHERE cpf iLIKE $1`, [cpf.replace(/\D+/g,'') + '%']);
+      responseCustomers = await connection.query(`
+        SELECT * FROM customers WHERE cpf iLIKE $1`, [cpf.replace(/\D+/g,'') + '%']);
+    } else if(offset) {
+      responseCustomers = await connection.query(`
+        SELECT * FROM customers ORDER BY id ASC OFFSET $1 ROWS`, [offset]);
     } else {
-      responseCustomers = await connection.query('SELECT * FROM customers');
+      responseCustomers = await connection.query('SELECT * FROM customers ORDER BY id ASC');
     }
     
     res.send(responseCustomers.rows);
@@ -204,53 +223,69 @@ const today = dayjs().format(`YYYY`) + "-" + dayjs().format(`MM`) + "-" + dayjs(
 
 app.get('/rentals', async (req, res) => {
   try {
-    const { customerId, gameId } = req.query;
+    const { customerId, gameId, offset } = req.query;
     let rentalsRows = '';
 
     if(customerId) {
       rentalsRows = await connection.query(`
-      SELECT rentals.*,
-        jsonb_build_object('name', customers.name, 'id', customers.id) 
-          AS customer,
-        jsonb_build_object('id', games.id, 'name', games.name, 'categoryId', games."categoryId", 'categoryName', categories.name) 
-          AS game 
-      FROM rentals
-      JOIN customers
-        ON rentals."customerId" = customers.id
-      JOIN games
-        ON rentals."gameId" = games.id
-      JOIN categories
-        ON categories.id = games."categoryId" 
-      WHERE "customerId" = $1`, [customerId])
+        SELECT rentals.*,
+          jsonb_build_object('name', customers.name, 'id', customers.id) 
+            AS customer,
+          jsonb_build_object('id', games.id, 'name', games.name, 'categoryId', games."categoryId", 'categoryName', categories.name) 
+            AS game 
+        FROM rentals
+        JOIN customers
+          ON rentals."customerId" = customers.id
+        JOIN games
+          ON rentals."gameId" = games.id
+        JOIN categories
+          ON categories.id = games."categoryId" 
+        WHERE "customerId" = $1`, [customerId])
     } else if(gameId) {
       rentalsRows = await connection.query(`
-      SELECT rentals.*,
-        jsonb_build_object('name', customers.name, 'id', customers.id) 
-          AS customer,
-        jsonb_build_object('id', games.id, 'name', games.name, 'categoryId', games."categoryId", 'categoryName', categories.name) 
-          AS game 
-      FROM rentals
-      JOIN customers
-        ON rentals."customerId" = customers.id
-      JOIN games
-        ON rentals."gameId" = games.id
-      JOIN categories
-        ON categories.id = games."categoryId"  
-      WHERE "gameId" = $1`, [gameId])
-    }  else {
+        SELECT rentals.*,
+          jsonb_build_object('name', customers.name, 'id', customers.id) 
+            AS customer,
+          jsonb_build_object('id', games.id, 'name', games.name, 'categoryId', games."categoryId", 'categoryName', categories.name) 
+            AS game 
+        FROM rentals
+        JOIN customers
+          ON rentals."customerId" = customers.id
+        JOIN games
+          ON rentals."gameId" = games.id
+        JOIN categories
+          ON categories.id = games."categoryId"  
+        WHERE "gameId" = $1`, [gameId])
+    } else if(offset) {
       rentalsRows = await connection.query(`
-      SELECT rentals.*,
-        jsonb_build_object('name', customers.name, 'id', customers.id) 
-          AS customer,
-        jsonb_build_object('id', games.id, 'name', games.name, 'categoryId', games."categoryId", 'categoryName', categories.name) 
-          AS game 
-      FROM rentals
-      JOIN customers
-        ON rentals."customerId" = customers.id
-      JOIN games
-        ON rentals."gameId" = games.id
-      JOIN categories
-        ON categories.id = games."categoryId"
+        SELECT rentals.*,
+          jsonb_build_object('name', customers.name, 'id', customers.id) 
+            AS customer,
+          jsonb_build_object('id', games.id, 'name', games.name, 'categoryId', games."categoryId", 'categoryName', categories.name) 
+            AS game 
+        FROM rentals
+        JOIN customers
+          ON rentals."customerId" = customers.id
+        JOIN games
+          ON rentals."gameId" = games.id
+        JOIN categories
+          ON categories.id = games."categoryId"  
+        ORDER BY id ASC OFFSET $1 ROWS`, [offset])
+    } else {
+      rentalsRows = await connection.query(`
+        SELECT rentals.*,
+          jsonb_build_object('name', customers.name, 'id', customers.id) 
+            AS customer,
+          jsonb_build_object('id', games.id, 'name', games.name, 'categoryId', games."categoryId", 'categoryName', categories.name) 
+            AS game 
+        FROM rentals
+        JOIN customers
+          ON rentals."customerId" = customers.id
+        JOIN games
+          ON rentals."gameId" = games.id
+        JOIN categories
+          ON categories.id = games."categoryId"
+        ORDER BY id ASC
       `)
     }
 
