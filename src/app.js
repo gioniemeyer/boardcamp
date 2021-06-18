@@ -3,6 +3,8 @@ import cors from 'cors';
 import pg from 'pg';
 // import joi from 'joi';
 
+pg.types.setTypeParser(1082, str => str);
+
 const app = express();
 const { Pool } = pg;
 
@@ -49,9 +51,18 @@ app.get('/games', async (req, res) => {
   let responseGame = '';
 
   if(name) {
-    responseGame = await connection.query('SELECT * FROM games WHERE name iLIKE $1',[name + '%']);
+    responseGame = await connection.query(`
+      SELECT games.*, categories.name AS "categoryName" 
+      FROM games 
+      JOIN categories
+      ON games."categoryId" = categories.id
+      WHERE games.name iLIKE $1`,[name + '%']);
   } else {
-    responseGame = await connection.query('SELECT * FROM games');
+    responseGame = await connection.query(`
+    SELECT games.*, categories.name AS "categoryName" 
+    FROM games 
+    JOIN categories
+    ON games."categoryId" = categories.id`);
   }
   
   res.send(responseGame.rows);
@@ -106,15 +117,19 @@ app.get('/customers/:id', async (req, res) => {
 app.post('/customers', async (req, res) => {
   const {name, phone, cpf, birthday} = req.body;
 
-  if(!name || name.length === 0 || !(9999999999 < cpf < 99999999999) || !(999999999 < phone < 99999999999) || !birthday || !Date.parse(birthday) || Date.parse(birthday) > Date.now()) {
+  const regexCpf = /^[0-9]{3}\.[0-9]{3}\.[0-9]{3}\-[0-9]{2}$/;
+  const cpfFormat = regexCpf.test(cpf) 
+  console.log(cpfFormat);
+
+  
+  if(!name || name.length === 0 || !cpfFormat || !(999999999 < phone < 99999999999) || !birthday || !Date.parse(birthday) || Date.parse(birthday) > Date.now()) {
     return res.sendStatus(400);
   }
 
   const checkCpf = await connection.query('SELECT * FROM customers WHERE cpf iLIKE $1',[cpf])
   if(checkCpf.rows[0]) return res.sendStatus(409);
 
-  await connection.query('insert into customers (name, phone, cpf, birthday) values ($1, $2, $3, $4)',[name, phone, cpf, birthday]);
-  console.log(birthday)
+  await connection.query('insert into customers (name, phone, cpf, birthday) values ($1, $2, $3, $4)',[name, phone, cpf.replace(/\D+/g, ''), birthday]);
   return res.sendStatus(201);
 
 })
