@@ -1,6 +1,8 @@
 import express from 'express';
 import cors from 'cors';
 import pg from 'pg';
+import dayjs from "dayjs";
+import "dayjs/locale/pt-br.js";
 // import joi from 'joi';
 
 pg.types.setTypeParser(1082, str => str);
@@ -149,7 +151,10 @@ app.put('/customers/:id', async (req, res) => {
     return res.sendStatus(400);
   }
 
-  const checkCpfCustomer = await connection.query('SELECT * FROM customers WHERE cpf iLIKE $1 AND id <> $2',[cpf.replace(/\D+/g,''), id]);
+  const checkCpfCustomer = await connection.query(`
+    SELECT * 
+    FROM customers 
+    WHERE cpf iLIKE $1 AND id <> $2`,[cpf.replace(/\D+/g,''), id]);
   if(checkCpfCustomer.rows[0]) return res.sendStatus(409);
 
   await connection.query(`
@@ -163,7 +168,34 @@ app.put('/customers/:id', async (req, res) => {
 
 //----
 
+app.get('/rentals', async (req, res) => {
+  
+  const rentalsRows = await connection.query(`select * from rentals`);
+  res.send(rentalsRows.rows)
+})
 
+app.post('/rentals', async (req, res) => {
+  const {customerId, gameId, daysRented} = req.body;
+  let gameRented = '';
+  const today = dayjs().format(`YYYY`) + "-" + dayjs().format(`MM`) + "-" + dayjs().format(`DD`);
+  const g = await connection.query(`SELECT * FROM games WHERE id = $1`, [gameId]);
+  const c = await connection.query(`SELECT * FROM customers WHERE id = $1`, [customerId]);
+
+  if(g.rows[0]) gameRented = g.rows[0]; 
+  
+  const array = await connection.query(`select * from rentals where "gameId" = $1`, [gameId]);
+  const stockRented = array.rows.length;
+  
+  if(!gameRented || !c.rows[0] || daysRented < 1 || stockRented >= gameRented.stockTotal) return res.sendStatus(400);
+  const p = daysRented*gameRented.pricePerDay;
+  // console.log(p);
+
+  await connection.query(`
+    INSERT INTO rentals ("customerId","gameId","daysRented", "rentDate", "originalPrice")
+    VALUES ($1, $2, $3, $4, $5)
+  `,[customerId, gameId, daysRented, today, daysRented*gameRented.pricePerDay])
+  res.sendStatus(201);
+})
 
 console.log('rodando')
 
@@ -174,10 +206,10 @@ app.listen(4000);
 
 
 
-// app.delete('/customers', async (req, res) => {
-//   await connection.query('delete from customers where id = 5');
-//   res.sendStatus(200);
-// })
+app.delete('/rentals', async (req, res) => {
+  await connection.query('delete from rentals where id = 4');
+  res.sendStatus(200);
+})
 
 // app.delete('/games', async (req, res) => {
 //   await connection.query('delete from games where id = 3');
