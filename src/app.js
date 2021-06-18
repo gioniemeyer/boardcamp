@@ -256,7 +256,6 @@ app.get('/rentals', async (req, res) => {
 
     res.send(rentalsRows.rows)
   } catch(err) {
-    console.log(err);
     res.status(500).send(err);
   } 
 })
@@ -286,7 +285,7 @@ app.post('/rentals', async (req, res) => {
   }
 })
 
-app.put('/rentals/:id/return', async (req, res) => {
+app.post('/rentals/:id/return', async (req, res) => {
   try {
     const { id } = req.params;
     let delayFee = 0;
@@ -335,7 +334,5 @@ app.delete('/rentals/:id', async (req, res) => {
     res.status(500).send(err);
   }
 })
-
-console.log('rodando')
 
 app.listen(4000);
