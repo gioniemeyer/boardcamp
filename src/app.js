@@ -3,7 +3,6 @@ import cors from 'cors';
 import pg from 'pg';
 import dayjs from "dayjs";
 import "dayjs/locale/pt-br.js";
-// import joi from 'joi';
 
 pg.types.setTypeParser(1082, str => str);
 
@@ -95,7 +94,10 @@ app.post('/games', async (req, res) => {
     const checkName = await connection.query('SELECT * FROM games WHERE name iLIKE $1',[name])
     if(checkName.rows[0]) return res.sendStatus(409);
 
-    await connection.query('INSERT INTO games (name, image, "stockTotal", "categoryId", "pricePerDay") VALUES ($1, $2, $3, $4, $5)',[name, image, stockTotal, categoryId, pricePerDay]);
+    await connection.query(`
+    INSERT INTO games (name, image, "stockTotal", "categoryId", "pricePerDay") 
+    VALUES ($1, $2, $3, $4, $5)
+    LIMIT 1`,[name, image, stockTotal, categoryId, pricePerDay]);
     return res.sendStatus(201);
   } catch(err) {
     res.status(500).send(err);
@@ -156,7 +158,8 @@ app.post('/customers', async (req, res) => {
 
     await connection.query(`
       INSERT INTO customers (name, phone, cpf, birthday) 
-      VALUES ($1, $2, $3, $4)`,
+      VALUES ($1, $2, $3, $4)
+      LIMIT 1`,
       [name, phone, cpf.replace(/\D+/g, ''), birthday]);
     
       return res.sendStatus(201);
@@ -186,7 +189,8 @@ app.put('/customers/:id', async (req, res) => {
     await connection.query(`
       UPDATE customers 
       SET name = $1, phone = $2, cpf = $3, birthday = $4 
-      WHERE id = $5`,
+      WHERE id = $5
+      LIMIT 1`,
       [name, phone, cpf.replace(/\D+/g, ''), birthday, id]);
     
       return res.sendStatus(200);
@@ -204,15 +208,55 @@ app.get('/rentals', async (req, res) => {
     let rentalsRows = '';
 
     if(customerId) {
-      rentalsRows = await connection.query(`SELECT * FROM rentals WHERE "customerId" = $1`, [customerId])
+      rentalsRows = await connection.query(`
+      SELECT rentals.*,
+        jsonb_build_object('name', customers.name, 'id', customers.id) 
+          AS customer,
+        jsonb_build_object('id', games.id, 'name', games.name, 'categoryId', games."categoryId", 'categoryName', categories.name) 
+          AS game 
+      FROM rentals
+      JOIN customers
+        ON rentals."customerId" = customers.id
+      JOIN games
+        ON rentals."gameId" = games.id
+      JOIN categories
+        ON categories.id = games."categoryId" 
+      WHERE "customerId" = $1`, [customerId])
     } else if(gameId) {
-      rentalsRows = await connection.query(`SELECT * FROM rentals WHERE "gameId" = $1`, [gameId])
+      rentalsRows = await connection.query(`
+      SELECT rentals.*,
+        jsonb_build_object('name', customers.name, 'id', customers.id) 
+          AS customer,
+        jsonb_build_object('id', games.id, 'name', games.name, 'categoryId', games."categoryId", 'categoryName', categories.name) 
+          AS game 
+      FROM rentals
+      JOIN customers
+        ON rentals."customerId" = customers.id
+      JOIN games
+        ON rentals."gameId" = games.id
+      JOIN categories
+        ON categories.id = games."categoryId"  
+      WHERE "gameId" = $1`, [gameId])
     }  else {
-      rentalsRows = await connection.query(`SELECT * FROM rentals`)
+      rentalsRows = await connection.query(`
+      SELECT rentals.*,
+        jsonb_build_object('name', customers.name, 'id', customers.id) 
+          AS customer,
+        jsonb_build_object('id', games.id, 'name', games.name, 'categoryId', games."categoryId", 'categoryName', categories.name) 
+          AS game 
+      FROM rentals
+      JOIN customers
+        ON rentals."customerId" = customers.id
+      JOIN games
+        ON rentals."gameId" = games.id
+      JOIN categories
+        ON categories.id = games."categoryId"
+      `)
     }
 
     res.send(rentalsRows.rows)
   } catch(err) {
+    console.log(err);
     res.status(500).send(err);
   } 
 })
@@ -226,7 +270,7 @@ app.post('/rentals', async (req, res) => {
 
     if(g.rows[0]) gameRented = g.rows[0]; 
     
-    const array = await connection.query(`select * from rentals where "gameId" = $1 AND "returnDate" = $2`, [gameId, null]);
+    const array = await connection.query(`select * from rentals where "gameId" = $1 AND "returnDate" IS NULL`, [gameId]);
     const stockRented = array.rows.length;
     
     if(!customerId || !gameId || !daysRented || !gameRented || !c.rows[0] || daysRented < 1 || stockRented >= gameRented.stockTotal) return res.sendStatus(400);
@@ -234,6 +278,7 @@ app.post('/rentals', async (req, res) => {
     await connection.query(`
       INSERT INTO rentals ("customerId","gameId","daysRented", "rentDate", "originalPrice")
       VALUES ($1, $2, $3, $4, $5)
+      LIMIT 1
     `,[customerId, gameId, daysRented, today, daysRented*gameRented.pricePerDay])
     res.sendStatus(201);
   } catch(err) {
@@ -272,23 +317,25 @@ app.put('/rentals/:id/return', async (req, res) => {
   } catch(err) {
     res.status(500).send(err);
   }
+});
+
+app.delete('/rentals/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const r = await connection.query(`SELECT * FROM rentals WHERE id = $1 LIMIT 1`, [id]);
+    
+    if(r.rows.length === 0) return res,sendStatus(404);
+
+    if(r.rows[0].returnDate) return res.sendStatus(400);
+    
+    await connection.query('DELETE FROM rentals where id = $1',[id]);
+    res.sendStatus(200);
+  } catch(err) {
+    res.status(500).send(err);
+  }
 })
 
 console.log('rodando')
 
 app.listen(4000);
-
-
-
-
-
-
-app.delete('/rentals', async (req, res) => {
-  await connection.query('delete from rentals where id = 4');
-  res.sendStatus(200);
-})
-
-// app.delete('/games', async (req, res) => {
-//   await connection.query('delete from games where id = 3');
-//   res.sendStatus(200);
-// })
