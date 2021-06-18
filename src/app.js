@@ -226,7 +226,7 @@ app.post('/rentals', async (req, res) => {
 
     if(g.rows[0]) gameRented = g.rows[0]; 
     
-    const array = await connection.query(`select * from rentals where "gameId" = $1`, [gameId]);
+    const array = await connection.query(`select * from rentals where "gameId" = $1 AND "returnDate" = $2`, [gameId, null]);
     const stockRented = array.rows.length;
     
     if(!customerId || !gameId || !daysRented || !gameRented || !c.rows[0] || daysRented < 1 || stockRented >= gameRented.stockTotal) return res.sendStatus(400);
